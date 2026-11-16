@@ -2,20 +2,24 @@ name: Build Android APK
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+    tags: ["v*"]
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Find project folder
+        id: p
+        run: echo "dir=$(dirname "$(find . -name pubspec.yaml -not -path '*/build/*' | head -1)")" >> "$GITHUB_OUTPUT"
+
       - name: Set up Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
@@ -23,23 +27,27 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.24.5"
           channel: stable
 
       - name: Generate Android project
-        working-directory: pm
-        run: flutter create --platforms=android --project-name picklematch --org com.picklematch .
+        working-directory: ${{ steps.p.outputs.dir }}
+        run: flutter create . --platforms=android --project-name picklematch --org com.picklematch
 
       - name: Install dependencies
-        working-directory: pm
+        working-directory: ${{ steps.p.outputs.dir }}
         run: flutter pub get
 
+      - name: Generate app icon
+        working-directory: ${{ steps.p.outputs.dir }}
+        continue-on-error: true
+        run: dart run flutter_launcher_icons
+
       - name: Build APK
-        working-directory: pm
+        working-directory: ${{ steps.p.outputs.dir }}
         run: flutter build apk --release
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: picklematch-apk
-          path: pm/build/app/outputs/flutter-apk/app-release.apk
+          path: ${{ steps.p.outputs.dir }}/build/app/outputs/flutter-apk/app-release.apk
