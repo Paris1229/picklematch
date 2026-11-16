@@ -14,27 +14,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Set up Java
         uses: actions/setup-java@v5
         with:
-          distribution: "temurin"
+          distribution: temurin
           java-version: "17"
 
-      - name: Setup Flutter
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.24.5"
-          channel: "stable"
+          channel: stable
+
+      - name: Generate Android project
+        working-directory: pm
+        run: flutter create --platforms=android --project-name picklematch --org com.picklematch .
 
       - name: Install dependencies
-        run: |
-          cd pm
-          flutter pub get
+        working-directory: pm
+        run: flutter pub get
 
       - name: Build APK
-        run: |
-          cd pm
-          flutter build apk --release
+        working-directory: pm
+        run: flutter build apk --release
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
