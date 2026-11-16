@@ -253,6 +253,14 @@ class _HomeState extends State<Home> {
   double avg(List<Player> l) => l.fold(0.0, (s, x) => s + x.rating) / l.length;
   int levelIndex(Player x) => levels.indexOf(x.skillLevel);
   int now() => DateTime.now().millisecondsSinceEpoch;
+  int? activeCourtFor(Player player) {
+    for (final active in activeMatches) {
+      if (active.match.pairing.all.any((x) => x.id == player.id)) {
+        return active.match.courtNumber;
+      }
+    }
+    return null;
+  }
 
   Pairing pairPlayers(List<Player> selected) {
     if (!skill) {
@@ -385,7 +393,9 @@ class _HomeState extends State<Home> {
   }
 
   Future<void> queueAll() async {
-    final l = players.where((x) => x.queuedAt == null).toList()
+    final l = players
+        .where((x) => x.queuedAt == null && activeCourtFor(x) == null)
+        .toList()
       ..shuffle(Random());
     var t = now();
     for (final x in l) {
@@ -584,6 +594,14 @@ class _HomeState extends State<Home> {
   }
 
   Future<void> editPlayer([Player? pl]) async {
+    if (pl != null && activeCourtFor(pl) != null) {
+      final playingCourt = activeCourtFor(pl)!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('${pl.name} is playing on Court $playingCourt.')),
+      );
+      return;
+    }
     final name = TextEditingController(text: pl?.name);
     String? err;
     var changed = false;
@@ -1035,24 +1053,35 @@ class _HomeState extends State<Home> {
                         subtitle: Text(
                             '${players[i].skillLevel} - ${players[i].wins}W ${players[i].losses}L'),
                         trailing: IconButton(
-                            tooltip: players[i].queuedAt == null
-                                ? 'Join queue'
-                                : 'Leave queue',
+                            tooltip: activeCourtFor(players[i]) != null
+                                ? 'Playing on Court ${activeCourtFor(players[i])}'
+                                : players[i].queuedAt == null
+                                    ? 'Join queue'
+                                    : 'Leave queue',
                             icon: Icon(
-                                players[i].queuedAt == null
-                                    ? Icons.playlist_add
-                                    : Icons.check_circle,
-                                color: players[i].queuedAt == null
-                                    ? null
-                                    : cs.primary),
-                            onPressed: () async {
-                              await DB.queue(players[i].id!,
-                                  players[i].queuedAt == null ? now() : null);
-                              if (mounted) {
-                                setState(() => courtMatches.clear());
-                              }
-                              load();
-                            })))),
+                                activeCourtFor(players[i]) != null
+                                    ? Icons.sports_tennis
+                                    : players[i].queuedAt == null
+                                        ? Icons.playlist_add
+                                        : Icons.check_circle,
+                                color: activeCourtFor(players[i]) != null
+                                    ? cs.secondary
+                                    : players[i].queuedAt == null
+                                        ? null
+                                        : cs.primary),
+                            onPressed: activeCourtFor(players[i]) != null
+                                ? null
+                                : () async {
+                                    await DB.queue(
+                                        players[i].id!,
+                                        players[i].queuedAt == null
+                                            ? now()
+                                            : null);
+                                    if (mounted) {
+                                      setState(() => courtMatches.clear());
+                                    }
+                                    load();
+                                  })))),
         ]);
 
   Widget rankTab() {
